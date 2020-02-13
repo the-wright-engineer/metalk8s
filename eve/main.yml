@@ -403,6 +403,18 @@ models:
       env:
         HOSTS_LIST: bootstrap
       workdir: build/eve/workers/openstack-multiple-nodes/terraform/
+  - ShellCommand: &wait_pods_status_ssh
+      name: Waiting for all pods to be ready
+      env: &_env_wait_pods_status_ssh
+        SLEEP_TIME: 5
+        RETRY: 60
+        SSH_CONFIG: ssh_config
+        STATUS: Running
+      command: >
+        scp -F "$SSH_CONFIG" eve/wait_pods_status.sh bootstrap:/tmp/wait_pods_status.sh &&
+        ssh -F "$SSH_CONFIG" bootstrap sudo /tmp/wait_pods_status.sh
+          --status "$STATUS" --retry "$RETRY" --sleep-time "$SLEEP_TIME"
+      haltOnFailure: true
 
 stages:
   pre-merge:
@@ -1294,6 +1306,12 @@ stages:
             /tmp/create-volumes.sh
           haltOnFailure: true
       - ShellCommand:
+          <<: *wait_pods_status_ssh
+          env:
+            <<: *_env_wait_pods_status_ssh
+            SSH_CONFIG: >-
+              eve/workers/openstack-multiple-nodes/terraform/ssh_config
+      - ShellCommand:
           <<: *bastion_tests
           name: Run fast tests on the bastion
           env:
@@ -1408,6 +1426,12 @@ stages:
             <<: *_env_bastion_tests
             PYTEST_FILTERS: "restore"
             BOOTSTRAP_BACKUP_ARCHIVE: "/tmp/%(prop:bootstrap_backup_archive)s"
+      - ShellCommand:
+          <<: *wait_pods_status_ssh
+          env:
+            <<: *_env_wait_pods_status_ssh
+            SSH_CONFIG: >-
+              eve/workers/openstack-multiple-nodes/terraform/ssh_config
       - ShellCommand:
           <<: *bastion_tests
           name: Run fast tests on the bastion
