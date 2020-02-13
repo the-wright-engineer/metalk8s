@@ -403,6 +403,33 @@ models:
       env:
         HOSTS_LIST: bootstrap
       workdir: build/eve/workers/openstack-multiple-nodes/terraform/
+  - ShellCommand: &wait_pods_ready_ssh
+      name: Waiting for all pods to be ready
+      env:
+        TIME_TO_SLEEP: 5
+        MAX_TRIES: 60
+      command:
+        ssh -F ssh_config bootstrap "
+          pods_ready=0
+          for ((try = 0; try <= $MAX_TRIES; ++try)); do
+            if ! sudo kubectl get pods -A \
+                --field-selector=status.phase!=Running \
+                | grep 'No resources found'; then
+              echo 'Waiting for pods to be ready...'
+              sleep $TIME_TO_SLEEP
+            else
+              echo 'All pods are ready !'
+              pods_ready=1
+              break
+            fi
+          done
+          if [ $pods_ready -eq 0 ]; then
+            echo 'Pods are still not ready after $MAX_TRIES tries !'
+            exit 1
+          fi
+        "
+      workdir: build/eve/workers/openstack-multiple-nodes/terraform/
+      haltOnFailure: true
 
 stages:
   pre-merge:
@@ -1294,6 +1321,7 @@ stages:
             NODE_NAME=node1
             /tmp/create-volumes.sh
           haltOnFailure: true
+      - ShellCommand: *wait_pods_ready_ssh
       - ShellCommand:
           <<: *bastion_tests
           name: Run fast tests on the bastion
@@ -1409,6 +1437,7 @@ stages:
             <<: *_env_bastion_tests
             PYTEST_FILTERS: "restore"
             BOOTSTRAP_BACKUP_ARCHIVE: "/tmp/%(prop:bootstrap_backup_archive)s"
+      - ShellCommand: *wait_pods_ready_ssh
       - ShellCommand:
           <<: *bastion_tests
           name: Run fast tests on the bastion
