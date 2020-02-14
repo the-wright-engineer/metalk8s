@@ -2,11 +2,23 @@
 
 .. note: Keep this in sync with the toctree in `index.rst`...
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+.. only:: not release
 
-   installation/index
-   operation/index
-   developer/index
-   glossary
+   .. toctree::
+      :maxdepth: 2
+      :caption: Contents:
+
+      installation/index
+      operation/index
+      developer/index
+      glossary
+
+.. only:: release
+
+   .. toctree::
+      :maxdepth: 2
+      :caption: Contents:
+
+      installation/index
+      operation/index
+      glossary

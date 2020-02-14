@@ -15,19 +15,27 @@ Welcome to MetalK8s's documentation!
 
 .. note: Keep this in sync with the toctree in `index-latex.rst`...
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+.. only:: not release
 
-   installation/index
-   operation/index
-   developer/index
-   glossary
+   .. toctree::
+      :maxdepth: 2
+      :caption: Contents:
 
+      installation/index
+      operation/index
+      developer/index
+      glossary
 
-Indices and tables
-==================
+      * :ref:`genindex`
+      * :ref:`modindex`
+      * :ref:`search`
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+.. only:: release
+
+   .. toctree::
+      :maxdepth: 2
+      :caption: Contents:
+
+      installation/index
+      operation/index
+      glossary
