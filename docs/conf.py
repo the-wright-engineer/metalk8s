@@ -27,6 +27,9 @@ project = 'MetalK8s'
 copyright = '2019, Scality'
 author = 'Scality'
 
+# Used for finding the project logo and defining some links
+project_identifier = 'metalk8s'
+
 # The short version, {major}.{minor}
 version = '2.4'
 
@@ -71,7 +74,10 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_rtd_theme'
+if ON_RTD:
+    html_theme = 'sphinx_rtd_theme'
+else:
+    html_theme = 'sphinx_scality'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -79,6 +85,19 @@ html_theme = 'sphinx_rtd_theme'
 #
 html_theme_options = {
     'logo_only': True,
+    'social_links': [
+        ("linkedin", "https://www.linkedin.com/company/scality/"),
+        ("twitter", "https://twitter.com/scality"),
+        ("instagram", "https://instagram.com/scalitylife"),
+        ("facebook", "https://www.facebook.com/scality/"),
+    ],
+    'footer_links': [
+        ("Support", "https://support.scality.com"),
+        ("Knowledge Base", "https://support.scality.com/hc/en-us"),
+        ("Training", "https://training.scality.com"),
+        ("Privacy Policy", "https://www.scality.com/privacy-policy/"),
+    ],
+    'kblink': 'https://support.scality.com/hc/en-us',
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,
@@ -90,12 +109,15 @@ html_context = {
     'css_files': [
         '_static/theme-overrides.css',
     ],
+    'project_identifier': project_identifier,
 }
 
 html_show_sourcelink = False
 
-html_logo = '../artwork/generated/metalk8s-logo-wide-white-200.png'
-
+if ON_RTD:
+    html_logo = '../artwork/generated/metalk8s-logo-wide-white-200.png'
+else:
+    html_logo = '../artwork/generated/metalk8s-logo-wide-black-400.png'
 
 # -- Options for HTMLHelp output ---------------------------------------------
 
