@@ -119,7 +119,7 @@ html_show_sourcelink = False
 if ON_RTD:
     html_logo = '../artwork/generated/metalk8s-logo-wide-white-200.png'
 else:
-    html_logo = '../artwork/generated/metalk8s-logo-wide-black-400.png'
+    html_logo = '../artwork/generated/metalk8s-logo-vertical-black-400.png'
 
 # -- Options for HTMLHelp output ---------------------------------------------
 

@@ -48,7 +48,11 @@ mkdir -p generated/
 generate_svg wide white '#FFFFFF'
 generate_svg wide black '#000000'
 
+generate_svg vertical black '#000000'
+
 generate_png wide white 200
 generate_png wide black 400
+
+generate_png vertical black 400
 
 generate_pdf wide black
