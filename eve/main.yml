@@ -448,6 +448,7 @@ stages:
           name: Trigger build, docs and lint stages simultaneously
           stage_names:
             - build
+            - build-example-solution #remove me
             - docs
             - lint
             - unit_tests
@@ -458,6 +459,7 @@ stages:
           stage_names:
             - single-node-install-rhel
             - multiple-nodes-centos
+            - multiple-nodes-example-solution-centos #remove me
       - ShellCommand: *add_final_status_artifact_success
       - Upload: *upload_final_status_artifact
 
@@ -506,6 +508,7 @@ stages:
             - single-node-upgrade-centos
             - single-node-downgrade-centos
             - single-node-patch-version
+            - multiple-nodes-example-solution-centos
           waitForFinish: True
       - ShellCommand: *add_final_status_artifact_success
       - Upload: *upload_final_status_artifact
@@ -611,7 +614,7 @@ stages:
             <<: *_build_ex-solution_junit_info
             STEP_NAME: build-example-solution
       - ShellCommand: *setup_cache
-      - SetPropertyFromCommand:
+      - SetPropertyFromCommand: &set_example_solution_version
           name: Set Example Solution version property
           property: example_solution_version
           command: >
@@ -1370,7 +1373,7 @@ stages:
       - ShellCommand: *retrieve_iso
       - ShellCommand: *retrieve_iso_checksum
       - ShellCommand: *check_iso_checksum
-      - ShellCommand:
+      - ShellCommand: &is_installed_unzip_and_curl
           name: Check if unzip and curl are installed
           command: |-
             if ! unzip -h 2&> /dev/null; then
@@ -1396,7 +1399,7 @@ stages:
           env:
             <<: *_env_terraform
             TF_VAR_nodes_count: "2"
-      - ShellCommand:
+      - ShellCommand: &validate_ssh_config_bootstrap_node
           name: Check SSH config for bootstrap node
           command: |-
             if [ ! -f ssh_config ]; then
@@ -1409,7 +1412,7 @@ stages:
             done;
           workdir: build/eve/workers/openstack-multiple-nodes/terraform/
           haltOnFailure: true
-      - ShellCommand:
+      - ShellCommand: &send_bastion_PKC_to_nodes
           # FIXME: find a way to share bastion public key to all spawned
           # instances from Terraform
           name: Send bastion public key to nodes
@@ -1421,7 +1424,7 @@ stages:
             ssh -F ssh_config node1
             "cat .ssh/bastion.pub >> .ssh/authorized_keys"
           workdir: build/eve/workers/openstack-multiple-nodes/terraform/
-      - ShellCommand:
+      - ShellCommand: &send_bastion_Private_key_to_nodes
           # FIXME: find a cleaner way with Terraform.
           name: Send bastion private key to bootstrap
           command: >
@@ -1429,27 +1432,27 @@ stages:
               scp -F ssh_config -3 bastion:.ssh/bastion bootstrap:./         &&
               ssh -F ssh_config bootstrap "sudo cp bastion /etc/metalk8s/pki/"
           workdir: build/eve/workers/openstack-multiple-nodes/terraform/
-      - ShellCommand:
+      - ShellCommand: &copy_ISO_to_bootstrap_node
           name: Copy ISO to bootstrap node
           command: >
             scp -F ssh_config ../../../../metalk8s.iso bootstrap:
           workdir: build/eve/workers/openstack-multiple-nodes/terraform/
           haltOnFailure: true
-      - ShellCommand:
+      - ShellCommand: &create_ISO_mountpoint_on_bootstrap_node
           name: Create mountpoint in bootstrap node
           command: >
             ssh -F ssh_config bootstrap
             sudo mkdir -p /var/tmp/metalk8s
           workdir: build/eve/workers/openstack-multiple-nodes/terraform/
           haltOnFailure: true
-      - ShellCommand:
+      - ShellCommand: &mount_ISO_to_bootstrap_node
           name: Mount ISO image in bootstrap node
           command: >
             ssh -F ssh_config bootstrap
             sudo mount -o loop metalk8s.iso /var/tmp/metalk8s
           workdir: build/eve/workers/openstack-multiple-nodes/terraform/
           haltOnFailure: true
-      - ShellCommand:
+      - ShellCommand: &launch_boostrap_script
           name: Start the bootstrap process in bootstrap node
           command: >
             ssh -F ssh_config bootstrap
@@ -1457,7 +1460,7 @@ stages:
             /var/tmp/metalk8s/bootstrap.sh --verbose
           workdir: build/eve/workers/openstack-multiple-nodes/terraform/
           haltOnFailure: true
-      - ShellCommand:
+      - ShellCommand: &provision_prometheus_volumes_multiple_nodes
           name: Provision Prometheus and AlertManager storage
           env:
             SSH_CONFIG: >-
@@ -1470,14 +1473,14 @@ stages:
             PRODUCT_MOUNT=/var/tmp/metalk8s
             /tmp/create-volumes.sh
           haltOnFailure: true
-      - ShellCommand:
+      - ShellCommand: &install_kubectl_on_boostrap_node
           name: Install kubectl on the boostrap node
           command: >
             ssh -F ssh_config bootstrap
             sudo yum install -y kubectl --disablerepo=*
             --enablerepo=metalk8s-kubernetes
           workdir: build/eve/workers/openstack-multiple-nodes/terraform/
-      - ShellCommand:
+      - ShellCommand: &enable_ipip
           name: Enable IPIP
           env:
             SSH_CONFIG: >-
@@ -1549,6 +1552,282 @@ stages:
           timeout: 14400
           env:
             STEP_NAME: multiple-nodes-centos
+            DURATION: "14400"
+      - ShellCommand:
+          <<: *terraform_destroy
+          workdir: build/eve/workers/openstack-multiple-nodes/terraform/
+
+# --- example-solution ---
+  multiple-nodes-example-solution-centos:
+    worker:
+      <<: *single_node_worker
+      flavor: m1.medium
+      path: eve/workers/openstack-multiple-nodes
+    steps:
+      - Git: *git_pull
+      - ShellCommand:
+          <<: *add_final_status_artifact_failed
+          env:
+            <<: *_env_final_status_artifact_failed
+            STEP_NAME: multiple-nodes-example-solution-centos
+      - SetPropertyFromCommand: *set_example_solution_version
+      - ShellCommand: *setup_cache
+      - ShellCommand: *ssh_ip_setup
+      - ShellCommand: *retrieve_iso
+      - ShellCommand: *retrieve_iso_checksum
+      - ShellCommand: *check_iso_checksum
+      - ShellCommand: *is_installed_unzip_and_curl
+      - ShellCommand: *terraform_install
+      - ShellCommand: *terraform_install_check
+      - ShellCommand:
+          <<: *terraform_init
+          workdir: build/eve/workers/openstack-multiple-nodes/terraform/
+      - ShellCommand:
+          <<: *terraform_validate
+          workdir: build/eve/workers/openstack-multiple-nodes/terraform/
+      - ShellCommand:
+          <<: *terraform_apply
+          workdir: build/eve/workers/openstack-multiple-nodes/terraform/
+          env:
+            <<: *_env_terraform
+            TF_VAR_nodes_count: "2"
+      - ShellCommand: *validate_ssh_config_bootstrap_node
+      - ShellCommand: *send_bastion_PKC_to_nodes
+      - ShellCommand: *send_bastion_Private_key_to_nodes
+      - ShellCommand: *copy_ISO_to_bootstrap_node
+      - ShellCommand: *create_ISO_mountpoint_on_bootstrap_node
+      - ShellCommand: *mount_ISO_to_bootstrap_node
+      - ShellCommand: *launch_boostrap_script
+      - ShellCommand: *provision_prometheus_volumes_multiple_nodes
+      - ShellCommand: *install_kubectl_on_boostrap_node
+      - ShellCommand: *enable_ipip
+      - ShellCommand:
+          <<: *wait_pods_running_ssh
+          env:
+            <<: *_env_wait_pods_running_ssh
+            SSH_CONFIG: >-
+              eve/workers/openstack-multiple-nodes/terraform/ssh_config
+      - ShellCommand:
+          name: Prepare Cypress test prerequisites on node1
+          env:
+            SSH_HOST: node1
+          command: >
+            ssh -F ssh_config "$SSH_HOST" --
+            sudo yum install -y gtk3 gcc-c++ make curl &&
+            curl -sL https://rpm.nodesource.com/setup_6.x | sudo -E bash - &&
+            sudo yum install -y nodejs &&
+            npm install --no-save --quiet --no-package-lock cypress@3.5.0
+            cypress-cucumber-preprocessor@1.12.0 cypress-wait-until@1.6.0
+          workdir: build/eve/workers/openstack-multiple-nodes/terraform/
+          haltOnFailure: true
+      - SetPropertyFromCommand:
+          name: Set Bootstrap node IP as Property
+          property: bootstrap_node_ip
+          env:
+            SSH_CONFIG: >-
+              eve/workers/openstack-multiple-nodes/terraform/ssh_config
+          command: |
+            ssh -F $SSH_CONFIG bootstrap --
+            bash -c '
+            IP=$(ip a show eth0 | grep -Po "inet \K[\d.]+") && echo $IP'
+          haltOnFailure: true
+      # AddMe: Add a step to copy Cypress test-suite to node1
+      # No Cypress test-suite exist as of now
+      # Once test-suite become available, we could simply tar archive the
+      # test-suite dir and scp it to node1
+      - ShellCommand:
+          name: Retrieve example-solution ISO image
+          env:
+            BASE_URL: "%(prop:artifacts_private_url)s/example-solution"
+            DEST_DIR: "."
+            SOLUTION_VERSION: "%(prop:example_solution_version)s.iso"
+          command: >
+            curl -s -XGET -o "${DEST_DIR}/example-solution.iso"
+            "${BASE_URL}-${SOLUTION_VERSION}"
+          timeout: 2400
+          haltOnFailure: true
+      - ShellCommand:
+          name: Copy example-solution ISO to bootstrap node
+          command: >
+            scp -F ssh_config ../../../../example-solution.iso
+            bootstrap:/var/tmp/example-solution.iso
+          workdir: build/eve/workers/openstack-multiple-nodes/terraform/
+          haltOnFailure: true
+      - ShellCommand:
+          name: Import example-solution
+          command: >
+            ssh -F ssh_config bootstrap
+            sudo bash
+            /var/tmp/metalk8s/solutions.sh import --archive
+            /var/tmp/example-solution.iso --verbose
+          workdir: build/eve/workers/openstack-multiple-nodes/terraform/
+          haltOnFailure: true
+      - ShellCommand:
+          name: Activate example-solution
+          env:
+            SOLUTION_VERSION: "%(prop:example_solution_version)s"
+          command: >
+            ssh -F ssh_config bootstrap
+            sudo bash
+            /var/tmp/metalk8s/solutions.sh activate --name example-solution
+            --version "${SOLUTION_VERSION}" --verbose
+          workdir: build/eve/workers/openstack-multiple-nodes/terraform/
+          haltOnFailure: true
+      - ShellCommand:
+          name: Create example-solution Environment
+          command: >
+            ssh -F ssh_config bootstrap
+            sudo bash
+            /var/tmp/metalk8s/solutions.sh create-env --name example-environment
+            --verbose
+          workdir: build/eve/workers/openstack-multiple-nodes/terraform/
+          haltOnFailure: true
+      # Taint bootstrap node to allow deployment of example-solution-operator
+      - ShellCommand:
+          name: Taint Bootstrap node before deploying example-solution-operator
+          env:
+            KUBECONF: "--kubeconfig /etc/kubernetes/admin.conf"
+          command: |
+            ssh -F ssh_config bootstrap --
+            bash -c '
+            sudo kubectl ${KUBECONF} taint nodes --all node-role.kubernetes.io/infra:NoSchedule-
+            sudo kubectl ${KUBECONF} taint nodes --all node-role.kubernetes.io/bootstrap:NoSchedule-
+            '
+          workdir: build/eve/workers/openstack-multiple-nodes/terraform/
+          haltOnFailure: true
+      - ShellCommand:
+          name: Deploy example-solution
+          env:
+            SOLUTION_VERSION: "%(prop:example_solution_version)s"
+          command: >
+            ssh -F ssh_config bootstrap
+            sudo bash
+            /var/tmp/metalk8s/solutions.sh add-solution --name
+            example-environment --solution example-solution --version
+            "${SOLUTION_VERSION}" --verbose
+          workdir: build/eve/workers/openstack-multiple-nodes/terraform/
+          haltOnFailure: true
+      - ShellCommand:
+          name: Copy example-solution CRs to Bootstrap node
+          env:
+            SSH_CONFIG: >-
+              eve/workers/openstack-multiple-nodes/terraform/ssh_config
+            HOST_CR_PATH: "examples/metalk8s-solution-example/example-operator/deploy/crds/examplesolution_v1alpha1_versionserver_cr.yaml"
+            BOOTSTRAP_CR_PATH: "/tmp/examplesolution_v1alpha1_versionserver_cr.yaml"
+          command: >
+            scp -F $SSH_CONFIG "${HOST_CR_PATH}" bootstrap:"${BOOTSTRAP_CR_PATH}"
+          haltOnFailure: true
+      - ShellCommand:
+          name: Apply example-solution CRs on Bootstrap node
+          command: >
+            ssh -F ssh_config bootstrap
+            sudo kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f
+            /tmp/examplesolution_v1alpha1_versionserver_cr.yaml
+          workdir: build/eve/workers/openstack-multiple-nodes/terraform/
+          haltOnFailure: true
+      - ShellCommand:
+          name: Verify example-solution-operator Deployment
+          env:
+            KUBECONF: "--kubeconfig /etc/kubernetes/admin.conf"
+          command: |
+            ssh -F ssh_config bootstrap --
+            bash -c '
+            ATTEMPTS=0
+            REPLICAS=$(sudo kubectl "$KUBECONF" get deployments example-solution-operator -n example-environment -o custom-columns=:status.availableReplicas)
+            until [ $REPLICAS -eq 1 ]; do
+              $REPLICAS
+              ((ATTEMPTS++))
+              if [ $ATTEMPTS -eq 10 ]; then
+                echo "Could not obtain Replicas after ${ATTEMPTS} attempts" >&2
+                exit 1
+              fi
+              sleep 3
+            done'
+          workdir: build/eve/workers/openstack-multiple-nodes/terraform/
+          haltOnFailure: true
+      - ShellCommand:
+          name: Verify exampleversions Deployment
+          env:
+            KUBECONF: "--kubeconfig /etc/kubernetes/admin.conf"
+          command: |
+            ssh -F ssh_config bootstrap --
+            bash -c '
+            ATTEMPTS=0
+            REPLICAS=$(sudo kubectl "$KUBECONF" get deployments example-versionserver -n example-environment -o custom-columns=:status.availableReplicas)
+            until [ $REPLICAS -eq 3 ]; do
+              $REPLICAS
+              ((ATTEMPTS++))
+              if [ $ATTEMPTS -eq 10 ]; then
+                echo "Could not obtain Replicas after ${ATTEMPTS} attempts" >&2
+                exit 1
+              fi
+              sleep 3
+            done'
+          workdir: build/eve/workers/openstack-multiple-nodes/terraform/
+          haltOnFailure: true
+      - SetPropertyFromCommand:
+          name: Set Cluster IP as Property for example-versionserver
+          property: versionserver_cluster_ip
+          env:
+            KUBECONF: "--kubeconfig /etc/kubernetes/admin.conf"
+            SSH_CONFIG: >-
+              eve/workers/openstack-multiple-nodes/terraform/ssh_config
+          command: |
+            ssh -F $SSH_CONFIG bootstrap --
+            bash -c '
+            IP=$(sudo kubectl "$KUBECONF" get service example-versionserver -n example-environment -o custom-columns=:spec.clusterIP) &&
+            echo $IP'
+          haltOnFailure: true
+      - ShellCommand:
+          name: Verify versionserver http endpoints
+          env:
+            HTTP: "http://"
+            IP: "%(prop:versionserver_cluster_ip)s"
+            SUB_URL: ":8080/version"
+          command: |
+            ssh -F ssh_config bootstrap --
+            bash -c '
+            ATTEMPTS=0
+            status_code=$(curl --write-out %{http_code} --silent --output /dev/null "$HTTP$IP$SUB_URL")
+            until [ $status_code -eq 200 ]; do
+              $status_code
+              ((ATTEMPTS++))
+              if [ $ATTEMPTS -eq 10 ]; then
+                echo "Could not obtain http endpoint after ${ATTEMPTS} attempts" >&2
+                exit 1
+              fi
+              sleep 2
+            done'
+          workdir: build/eve/workers/openstack-multiple-nodes/terraform/
+          haltOnFailure: true
+      # --- Collect logs ---
+      - ShellCommand:
+          <<: *generate_report_over_ssh
+          env:
+            <<: *_env_generate_report_over_ssh
+            HOSTS_LIST: "bootstrap"
+            SSH_CONFIG: >-
+              eve/workers/openstack-multiple-nodes/terraform/ssh_config
+      - ShellCommand:
+          <<: *collect_report_over_ssh
+          env:
+            <<: *_env_collect_report_over_ssh
+            HOSTS_LIST: "bootstrap"
+            SSH_CONFIG: >-
+              eve/workers/openstack-multiple-nodes/terraform/ssh_config
+            STEP_NAME: multiple-nodes-example-solution-centos
+      - Upload: *upload_report_artifacts
+      - ShellCommand:
+          <<: *add_final_status_artifact_success
+          env:
+            <<: *_env_final_status_artifact_success
+            STEP_NAME: multiple-nodes-example-solution-centos
+      - Upload: *upload_final_status_artifact
+      - ShellCommand:
+          <<: *wait_debug
+          timeout: 14400
+          env:
+            STEP_NAME: multiple-nodes-example-solution-centos
             DURATION: "14400"
       - ShellCommand:
           <<: *terraform_destroy
