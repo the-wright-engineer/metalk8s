@@ -63,6 +63,9 @@ Services exposed by MetalK8s, such as
 :ref:`Salt API <installation-services-salt>`, rely on the Kubernetes API for
 authenticating their users.
 
-.. todo::
+.. _managing_kubernetes_api_username_password:
+
+Managing Kubernetes API username and password
+---------------------------------------------
 
     - Define how to create and administer users.
