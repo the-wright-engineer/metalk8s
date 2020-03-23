@@ -13,6 +13,20 @@ spec:
         name: example-operator
     spec:
       serviceAccountName: example-operator
+      tolerations:
+      # Since in the CI we test the deployment of the example-solution on a
+      # Bootstrap node, we need tolerations else the operator pod will hang
+      # with Bootstrap node has taints that the pod didn't tolerate because of
+      # the taints node-role.kubernetes.io/bootstrap:NoSchedule
+      # node-role.kubernetes.io/infra:NoSchedule or we remove the taints with
+      # kubectl taint nodes --all node-role.kubernetes.io/infra:NoSchedule-
+      # kubectl taint nodes --all node-role.kubernetes.io/bootstrap:NoSchedule-
+      - key: "node-role.kubernetes.io/bootstrap"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "node-role.kubernetes.io/infra"
+        operator: "Exists"
+        effect: "NoSchedule"
       containers:
         - name: example-operator
           # Replace this with the built image name
