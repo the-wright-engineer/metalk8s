@@ -16,7 +16,7 @@ Requirements
 ____________
 
 As a MetalK8s administrator, I want to list or know the list of alert rules that
-are deployed on MetalK8s Prometheus cluster In Order to identify on what
+are deployed on MetalK8s Prometheus cluster in order to identify what
 specific rule I want to be alerted
 
 As a MetalK8s administrator, I want to set notification routing and receiver for
