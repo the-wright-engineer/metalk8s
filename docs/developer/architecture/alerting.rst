@@ -15,7 +15,7 @@ functionalities.
 Requirements
 ____________
 
-As a MetalK8s administrator, I want to list or know the list alert rules that
+As a MetalK8s administrator, I want to list or know the list of alert rules that
 are deployed on MetalK8s Prometheus cluster In Order to identify on what
 specific rule I want to be alerted
 
