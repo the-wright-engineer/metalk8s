@@ -18,6 +18,11 @@ from tests import utils
 def k8s_appsv1_client(k8s_apiclient):
     return AppsV1Api(api_client=k8s_apiclient)
 
+@pytest.fixture
+def csc(k8s_client):
+    return ClusterServiceConfiguration(k8s_client)
+
+
 # }}}
 
 
@@ -41,12 +46,13 @@ def test_service_config_propagation(host):
     "'{path}' equal to '{value}'"))
 def check_csc_configuration(
     k8s_client,
+    csc,
     name,
     namespace,
     path,
     value
 ):
-    csc_response = read_namespace_config_map(k8s_client, name, namespace)
+    csc_response = csc.get(name, namespace)
 
     assert csc_response, (
         "No ConfigMap with name {} in namespace {} found".format(
@@ -54,13 +60,14 @@ def check_csc_configuration(
         )
     )
 
-    csc_obj = csc_load(csc_response, name, namespace)
+    csc_obj = csc.load(csc_response, name, namespace)
     response_value = utils.get_dict_element(csc_obj, path)
 
     assert literal_eval(value) == response_value, (
         "Expected value {} for key {} in ConfigMap {} found in namespace {}, "
         "got {}".format(value, path, name, namespace, response_value)
     )
+    return dict(name=name, namespace=namespace, csc_obj=csc_obj)
 
 
 # }}}
@@ -74,15 +81,16 @@ def check_csc_configuration(
     "'{path}' to '{value}'"))
 def update_service_configuration(
     k8s_client,
+    csc,
     name,
     namespace,
     path,
     value
 ):
 
-    full_csc = read_namespace_config_map(k8s_client, name, namespace)
+    full_csc = csc.get(name, namespace)
     csc_obj = utils.set_dict_element(
-        csc_load(full_csc, name, namespace), path, literal_eval(value)
+        csc.load(full_csc, name, namespace), path, literal_eval(value)
     )
     patch = {
         'data': {
@@ -91,17 +99,13 @@ def update_service_configuration(
             )
         }
     }
-    response = patch_namespace_config_map(
-        k8s_client, name, namespace, patch
-    )
+    response = csc.update(name, namespace, patch)
 
     assert response
 
-    patched_csc = read_namespace_config_map(
-        k8s_client, name, namespace
-    )
+    patched_csc = csc.get(name, namespace)
     patched_value = utils.get_dict_element(
-        csc_load(patched_csc, name, namespace), path
+        csc.load(patched_csc, name, namespace), path
     )
 
     assert literal_eval(value) == patched_value, (
@@ -131,15 +135,13 @@ def apply_service_config(host, version, request, k8s_client, state):
     "we have '{value}' at '{path}' for '{service}' Deployment in namespace "
     "'{namespace}'"))
 def get_deployments(
-    host,
-    version,
     k8s_appsv1_client,
-    k8s_client,
-    request,
     value,
     path,
     service,
-    namespace
+    namespace,
+    check_csc_configuration,
+    csc
 
 ):
     def _wait_for_deployment():
@@ -158,6 +160,21 @@ def get_deployments(
                 value, service, utils.get_dict_element(response, path)
             )
         )
+        # original ConfigMap returned from Given block will be used to
+        # patch back the ConfigMap to it's original state
+        original_name = check_csc_configuration['name']
+        original_namespace = check_csc_configuration['namespace']
+        original_csc_obj = check_csc_configuration['csc_obj']
+
+        patch = {
+            'data': {
+                'config.yaml': yaml.safe_dump(
+                    original_csc_obj, default_flow_style=False
+                )
+            }
+        }
+        csc.update(original_name, original_namespace, patch)
+
     utils.retry(
         _wait_for_deployment,
         times=10,
@@ -172,46 +189,48 @@ def get_deployments(
 # Helpers {{{
 
 
-def read_namespace_config_map(k8s_client, name, namespace):
-    try:
-        response = k8s_client.read_namespaced_config_map(
-            name, namespace
-        )
-    except Exception as exc:
-        pytest.fail(
-            "Unable to read {} ConfigMap  in namespace {} with error: {!s}"
-            .format(name, namespace, exc)
-        )
-    return response
+class ClusterServiceConfiguration:
+    def __init__(self, k8s_client):
+        self.client = k8s_client
 
+    def get(self, name, namespace):
+        try:
+            response = self.client.read_namespaced_config_map(
+                name, namespace
+            )
+        except Exception as exc:
+            pytest.fail(
+                "Unable to read {} ConfigMap  in namespace {} with error: {!s}"
+                .format(name, namespace, exc)
+            )
+        return response
 
-def patch_namespace_config_map(k8s_client, name, namespace, patch):
-    try:
-        response = k8s_client.patch_namespaced_config_map(
-            name, namespace, patch
-        )
-    except Exception as exc:
-        pytest.fail(
-            "Unable to patch ConfigMap {} in namespace {} with error {!s}"
-            .format(name, namespace, exc)
-        )
-    return response
+    def update(self, name, namespace, patch):
+        try:
+            response = self.client.patch_namespaced_config_map(
+                name, namespace, patch
+            )
+        except Exception as exc:
+            pytest.fail(
+                "Unable to patch ConfigMap {} in namespace {} with error {!s}"
+                .format(name, namespace, exc)
+            )
+        return response
 
-
-def csc_load(full_csc, name, namespace):
-    try:
-        csc_obj = yaml.safe_load(full_csc.data['config.yaml'])
-    except yaml.YAMLError as exc:
-        raise Exception(
-            'Invalid YAML format in ConfigMap {} found in namespace {}: {!s}'
-            .format(name, namespace, exc)
-        )
-    except Exception as exc:
-        raise Exception(
-            "Failed loading `config.yaml` from ConfigMap {} in namespace {}: "
-            "{!s}".format(name, namespace, exc)
-        )
-    return csc_obj
+    def load(self, full_csc, name, namespace):
+        try:
+            csc_obj = yaml.safe_load(full_csc.data['config.yaml'])
+        except yaml.YAMLError as exc:
+            raise Exception(
+                'Invalid YAML format in ConfigMap {} found in namespace {}: {!s}'
+                .format(name, namespace, exc)
+            )
+        except Exception as exc:
+            raise Exception(
+                "Failed loading `config.yaml` from ConfigMap {} in namespace {}: "
+                "{!s}".format(name, namespace, exc)
+            )
+        return csc_obj
 
 
 # }}}
