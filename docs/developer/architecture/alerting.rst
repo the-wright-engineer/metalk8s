@@ -15,12 +15,12 @@ functionalities.
 Requirements
 ____________
 
-As a MetalK8s administrator, I want to list or know the list of alert rules that
-are deployed on MetalK8s Prometheus cluster in order to identify what
+As a MetalK8s administrator, I want to list or know the list of alert rules
+that are deployed on MetalK8s Prometheus cluster In order to identify on what
 specific rule I want to be alerted
 
-As a MetalK8s administrator, I want to set notification routing and receiver for
-a specific alert In order to get notified per when such alert is fired
+As a MetalK8s administrator, I want to set notification routing and receiver
+for a specific alert In order to get notified when such alert is fired
 The important routing to support are email, slack and pagerduty
 
 As a MetalK8s administrator, I want to update thresholds for a specific alert
