@@ -4,8 +4,8 @@ Alerting Functionalities
 Context
 -------
 
-MetalK8s is automatically deploying Prometheus, Alert Manager and a set of
-predefined alert rules. In order to leverage Prometheus and Alert Manager
+MetalK8s is automatically deploying Prometheus, Alertmanager and a set of
+predefined alert rules. In order to leverage Prometheus and Alertmanager
 functionalities, we need to explain, in the documentation, how to use it.
 In a later stage, those functionalities will be exposed through various
 administration and alerting UIs, but for now, we want to provide our
