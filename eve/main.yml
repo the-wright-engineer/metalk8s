@@ -1739,8 +1739,24 @@ stages:
             RETRIES: "10"
             SLEEP: "3"
           command: |
-            ssh -F ssh_config bootstrap
-            sudo bash /tmp/get_resource.sh
+            ssh -F ssh_config bootstrap \
+            bash -c " \
+            ATTEMPTS=0
+            declare -a GET_COLUMN_VALUE=(
+                sudo kubectl --kubeconfig '$KUBECONFIG' get '$RESOURCE_TYPE'
+                '$RESOURCE_NAME' -n '$NAMESPACE'
+                -o custom-columns='$RESOURCE_COLUMN'
+            )
+            CURRENT_VALUE=\$(\"\${GET_COLUMN_VALUE[@]}\")
+            until [ \"\$CURRENT_VALUE\" = '$RESOURCE_VALUE' ]; do
+              (( ATTEMPTS++ ))
+              if [ \"\$ATTEMPTS\" -eq '$RETRIES' ]; then
+                echo \"$RESOURCE_COLUMN still not equal to $RESOURCE_VALUE after \$ATTEMPTS attempts\" >&2
+                exit 1
+              fi
+              sleep '$SLEEP'
+              CURRENT_VALUE=\$(\"\${GET_COLUMN_VALUE[@]}\")
+            done"
           workdir: build/eve/workers/openstack-multiple-nodes/terraform/
           haltOnFailure: true
       - ShellCommand:
@@ -1757,7 +1773,7 @@ stages:
             KUBECONFIG: "/etc/kubernetes/admin.conf"
             SSH_CONFIG: >-
               eve/workers/openstack-multiple-nodes/terraform/ssh_config
-          command: |
+          command: >
             ssh -F $SSH_CONFIG bootstrap --
             sudo kubectl --kubeconfig "$KUBECONFIG" get service
             example-versionserver -n example-environment
@@ -1770,24 +1786,23 @@ stages:
             PORT: "8080"
             URL_PATH: "/version"
           command: |
-            ssh -F ssh_config bootstrap --
-            bash -c '
+            ssh -F ssh_config bootstrap \
+            bash -c " \
             ATTEMPTS=0
             declare -a GET_STATUS_CODE=(
                 curl --write-out %{http_code} --silent --output /dev/null
-                "http://$IP:$PORT$URL_PATH"
+                'http://$IP:$PORT$URL_PATH'
             )
-            status_code=$("${GET_STATUS_CODE[@]}")
-            until [ "$status_code" -eq 200 ]; do
-              $status_code
+            status_code=\$(\"\${GET_STATUS_CODE[@]}\")
+            until [ \"\$status_code\" = 200 ]; do
               ((ATTEMPTS++))
-              if [ "$ATTEMPTS" -eq 10 ]; then
-                echo "Failed to obtain endpoint after ${ATTEMPTS} attempts" >&2
+              if [ \"\$ATTEMPTS\" -eq 10 ]; then
+                echo \"Failed to obtain endpoint after \$ATTEMPTS attempts\" >&2
                 exit 1
               fi
               sleep 2
-              status_code=$("${GET_STATUS_CODE[@]}")
-            done'
+              status_code=\$(\"\${GET_STATUS_CODE[@]}\")
+            done"
           workdir: build/eve/workers/openstack-multiple-nodes/terraform/
           haltOnFailure: true
       # --- Collect logs ---
