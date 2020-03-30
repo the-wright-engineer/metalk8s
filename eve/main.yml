@@ -1709,13 +1709,13 @@ stages:
           workdir: build/eve/workers/openstack-multiple-nodes/terraform/
           haltOnFailure: true
       - ShellCommand:
-          name: Copy example-solution CRs & Bash script to Bootstrap node
+          name: Copy example-solution CRs to Bootstrap node
           env:
             SSH_CONFIG: >-
               eve/workers/openstack-multiple-nodes/terraform/ssh_config
           command: >
             scp -F $SSH_CONFIG examples/metalk8s-solution-example/example-operator/deploy/crds/examplesolution_v1alpha1_versionserver_cr.yaml
-            eve/get_resource.sh bootstrap:/tmp
+            bootstrap:/tmp
           haltOnFailure: true
       - ShellCommand:
           name: Apply example-solution CRs on Bootstrap node
@@ -1725,29 +1725,40 @@ stages:
             /tmp/examplesolution_v1alpha1_versionserver_cr.yaml
           workdir: build/eve/workers/openstack-multiple-nodes/terraform/
           haltOnFailure: true
-      - ShellCommand: &check_k8s_resource_column_ssh
+      - ShellCommand:
           name: Verify example-solution-operator Deployment
-          env: &_env_check_k8s_resource_column_ssh
-            KUBECONFIG: "/etc/kubernetes/admin.conf"
-            NAMESPACE: "example-environment"
-            RESOURCE_TYPE: "deployments"
-            RESOURCE_NAME: "example-solution-operator"
-            RESOURCE_COLUMN: ":status.availableReplicas"
-            RESOURCE_VALUE: "1"
-            RETRIES: "10"
-            SLEEP: "3"
           command: >
+            scp -F ssh_config eve/get_resource.sh bootstrap:/tmp/get_resource.sh &&
             ssh -F ssh_config bootstrap
-            sudo bash /tmp/get_resource.sh
+            sudo chmod +x /tmp/get_resource.sh &&
+            sudo env
+            KUBECONFIG=/etc/kubernetes/admin.conf
+            NAMESPACE=example-environment
+            RESOURCE_TYPE=deployments
+            RESOURCE_NAME=example-solution-operator
+            RESOURCE_COLUMN=:status.availableReplicas
+            RESOURCE_VALUE=1
+            RETRIES=10
+            SLEEP=3
+            /tmp/get_resource.sh
           workdir: build/eve/workers/openstack-multiple-nodes/terraform/
           haltOnFailure: true
       - ShellCommand:
-          <<: *check_k8s_resource_column_ssh
           name: Verify example-versionserver Deployment
-          env:
-            <<: *_env_check_k8s_resource_column_ssh
-            RESOURCE_NAME: "example-versionserver"
-            RESOURCE_VALUE: "3"
+          command: >
+            ssh -F ssh_config bootstrap
+            sudo env
+            KUBECONFIG=/etc/kubernetes/admin.conf
+            NAMESPACE=example-environment
+            RESOURCE_TYPE=deployments
+            RESOURCE_NAME=example-versionserver
+            RESOURCE_COLUMN=:status.availableReplicas
+            RESOURCE_VALUE=3
+            RETRIES=10
+            SLEEP=3
+            /tmp/get_resource.sh
+          workdir: build/eve/workers/openstack-multiple-nodes/terraform/
+          haltOnFailure: true
       - SetPropertyFromCommand:
           name: Set Cluster IP as Property for example-versionserver
           property: versionserver_cluster_ip
