@@ -140,50 +140,83 @@ const SolutionsList = props => {
     {
       label: intl.translate('solutions'),
       dataKey: 'solutions',
-      renderer: (solutions, row) => {
-        const solutionsLinks = solutions
-          .map((solution, idx) => {
-            const solutionRow = sortedSolutions.find(
-              s => s.name === solution.name,
-            );
+      renderer: (solutions, environment) => {
+        const isEnvironmentPreparing = environment.isPreparing;
+        const deployedSolutions = environment.solutions;
+        const solutionsList =
+          deployedSolutions &&
+          deployedSolutions
+            .map((deployedSolution, idx) => {
+              return (
+                <span
+                  key={idx}
+                  data-cy={`${deployedSolution.name} (v.${deployedSolution.version})`}
+                >
+                  {`${deployedSolution.name} (v.${deployedSolution.version})`}{' '}
+                </span>
+              );
 
-            const solutionVersion = solutionRow?.versions?.find(
-              v => v.version === solution.version,
-            );
-
-            return solutionVersion?.ui_url ? (
-              <ButtonContainer key={`solution_${idx}`} marginLeft={idx !== 0}>
-                <Button
-                  size="smaller"
-                  text={`${solution.name} ${solution.version}`}
-                  icon={<i className="fas fa-external-link-alt" />}
-                  onClick={() => {
-                    const url = `${solutionVersion.ui_url}/environments/${row.name}`;
-                    window.open(url, '_blank');
-                  }}
-                ></Button>
-              </ButtonContainer>
-            ) : null;
-          })
-          .filter(solution => solution != null);
+              return solutionVersion?.ui_url ? (
+                <ButtonContainer key={`solution_${idx}`} marginLeft={idx !== 0}>
+                  <Button
+                    size="smaller"
+                    text={`${solution.name} ${solution.version}`}
+                    icon={<i className="fas fa-external-link-alt" />}
+                    onClick={() => {
+                      const url = `${solutionVersion.ui_url}/environments/${row.name}`;
+                      window.open(url, '_blank');
+                    }}
+                  ></Button>
+                </ButtonContainer>
+              ) : null;
+            })
+            .filter(solution => solution != null);
 
         return (
-          <div>
-            <span>{solutionsLinks}</span>
-            <ButtonContainer marginLeft={solutionsLinks.length !== 0}>
-              <Button
-                size="smaller"
-                icon={<i className="fas fa-plus" />}
-                onClick={() => {
-                  setSelectedEnvironment(row.name);
-                  setisAddSolutionModalOpen(true);
-                }}
-              />
-            </ButtonContainer>
-          </div>
+          <EnvironmentSolutionContainer>
+            <Button
+              size="smaller"
+              text={intl.translate('add')}
+              outlined
+              onClick={() => {
+                setSelectedEnvironment(environment.name);
+                setisAddSolutionModalOpen(true);
+              }}
+              data-cy={`add_solution_to_${environment.name}_button`}
+            />
+            <SolutionLinks>{solutionsList}</SolutionLinks>
+            {isEnvironmentPreparing && (
+              <LoaderContainer>
+                <Loader size="small"></Loader>
+                {intl.translate('preparing_environemnt', {
+                  envName: environment.name,
+                })}
+              </LoaderContainer>
+            )}
+          </EnvironmentSolutionContainer>
         );
       },
       flexGrow: 1,
+    },
+    {
+      label: intl.translate('action'),
+      dataKey: 'action',
+      disableSort: true,
+      renderer: (_, environment) => {
+        return (
+          <>
+            <TrashButtonContainer
+              onClick={e => {
+                e.stopPropagation();
+                dispatch(deleteEnvironmentAction(environment.name));
+              }}
+              inverted={true}
+              icon={<i className="fas fa-lg fa-trash" />}
+              data-cy={`delete_${environment.name}_button`}
+            ></TrashButtonContainer>
+          </>
+        );
+      },
     },
   ];
 
@@ -205,8 +238,16 @@ const SolutionsList = props => {
   const firstVersion = sortedSolutions?.[0]?.versions?.[0]?.version ?? '';
 
   const initialValues = {
-    solution: { label: firstSolution, value: firstSolution },
-    version: { label: firstVersion, value: firstVersion },
+    solution: {
+      label: firstSolution,
+      value: firstSolution,
+      'data-cy': `${firstSolution}`,
+    },
+    version: {
+      label: firstVersion,
+      value: firstVersion,
+      'data-cy': `${firstVersion}`,
+    },
   };
 
   const validationSchema = {
@@ -248,6 +289,7 @@ const SolutionsList = props => {
               text={intl.translate('create_new_environment')}
               onClick={() => history.push('/solutions/create-environment')}
               icon={<i className="fas fa-plus" />}
+              data-cy="create_new_environment_button"
             />
           </EnvironmentHeader>
 
@@ -329,6 +371,7 @@ const SolutionsList = props => {
               const solutionsSelectOptions = sortedSolutions.map(solution => ({
                 label: solution.name,
                 value: solution.name,
+                'data-cy': `${solution.name}`,
               }));
 
               const selectedSolutionVersions =
@@ -340,9 +383,9 @@ const SolutionsList = props => {
                 solutionVersion => ({
                   label: solutionVersion.version,
                   value: solutionVersion.version,
+                  'data-cy': `${solutionVersion.version}`,
                 }),
               );
-
               return (
                 <ModalBody>
                   <Form>
@@ -382,6 +425,7 @@ const SolutionsList = props => {
                         <Button
                           text={intl.translate('add_solution')}
                           type="submit"
+                          data-cy="add_solution_submit_button"
                         />
                       </ActionContainer>
                     </FormStyle>
