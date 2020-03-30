@@ -275,3 +275,14 @@ def check_pillar_keys(keys, refresh=True, pillar=None, raise_error=True):
             return False
 
     return True
+
+
+def file_read(path):
+    """Returns the content of a given file
+
+    Arguments:
+        path (str): path to a file
+    """
+
+    with open(path, 'r') as fd:
+        return fd.read()

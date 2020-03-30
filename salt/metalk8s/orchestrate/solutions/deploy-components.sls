@@ -16,10 +16,10 @@ include:
 {%- macro manipulate_solution_components(solution, present=true) %}
   {%- if present %}
     {%- set action = "Apply" %}
-    {%- set renderer = kubernetes_present_renderer %}
+    {%- set state = "metalk8s_kubernetes.object_present" %}
   {%- else %}
     {%- set action = "Remove" %}
-    {%- set renderer = kubernetes_absent_renderer %}
+    {%- set state = "metalk8s_kubernetes.object_absent" %}
   {%- endif %}
 
   {# CRDs management #}
@@ -37,16 +37,16 @@ include:
   {%- for crd_file in crd_files %}
     {%- set sls_content = salt.saltutil.cmd(
             tgt=pillar.bootstrap_id,
-            fun='slsutil.renderer',
+            fun='metalk8s.file_read',
             kwarg={
                 'path': crd_file,
-                'default_renderer': renderer,
             },
           )[pillar.bootstrap_id]['ret'] %}
+
 {{ action }} CRD "{{ crd_file }}" for Solution {{ solution.name }}:
-  module.run:
-    - state.template_str:
-      - tem: "{{ sls_content | yaml }}"
+  {{ state }}:
+    - manifest:
+        {{ sls_content | yaml(False) | indent(8) }}"
 
   {%- endfor %} {# crd_file in crd_files #}
 
